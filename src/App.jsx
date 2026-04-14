@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyazEHualU85m65udD4dD5hbWYPgGfDcK6W4rL82ccGobRA5RV9H5xyNsqR4uBsXu-KpQ/exec'
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyLWEM-t8BfBjRQycLDQXgdONDYPoErftqhEA3ToQXVZ0k9ZCSTKVi3VdPc25vDPhNTAw/exec'
 
 const SMAP = {L:0,'1':1,'2':2,'3':3,'4':4,'5':5,M:6}
 const N = 15
