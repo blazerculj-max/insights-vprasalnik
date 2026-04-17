@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw91OXUqsSg4WPzfkvVTdyUzF-6eXT5hroeymTW83eC9veQ7dJvb1CSk9k9MjJTOUOtXA/exec'
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx7ShJLODvzjhjVZ3s6aSKHEfJfH5XOnfY_GvCLKiJVTCx1FESGaz44Q9Jw6DuUjbxi/exec'
 
 const SMAP = {L:0,'1':1,'2':2,'3':3,'4':4,'5':5,M:6}
 const N = 15
@@ -32,7 +32,7 @@ const SN_QUESTIONS = [
   {S:'Živim v sedanjosti in rešujem aktualne probleme',N:'Razmišljam o prihodnosti in možnostih ki še niso'},
   {S:'Pri odločanju se oprem na konkretne podatke in dokaze',N:'Pri odločanju pogosto sledim notranjemu občutku'},
 ]
-const SN_VALS = ['0','1','2','3','4','5','6']
+const SN_VALS = ['-3','-2','-1','0','+1','+2','+3']
 
 const CLR = {B:'#4a7ab5',R:'#c94030',G:'#2e8a55',Y:'#c49a10'}
 const CLR_L = {B:'#e8f0fa',R:'#faeaea',G:'#e6f5ee',Y:'#fdf6e3'}
@@ -85,41 +85,33 @@ export default function App() {
   const [podjetje, setPodjetje] = useState('')
   const [spol, setSpol] = useState('m')
   const [answers, setAnswers] = useState(Array(15).fill(null).map(()=>({B:null,R:null,G:null,Y:null})))
-  const [snAnswers, setSnAnswers] = useState(Array(4).fill(null).map(()=>({S:null,N:null})))
+  const [snAnswers, setSnAnswers] = useState(Array(4).fill(null)) // null ali -3 do +3
   const [current, setCurrent] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
   const orders = QUESTIONS.map((_,i)=>shuffle(COLORS,i*999+42))
 
-  function setSnVal(qi, side, val) {
+  function setSnVal(qi, val) {
     setSnAnswers(prev=>{
-      const next = prev.map(a=>({...a}))
+      const next = [...prev]
       // Toggle — klik na isto vrednost jo počisti
-      if(next[qi][side] === val) { next[qi][side] = null; return next }
-      next[qi][side] = val
+      next[qi] = next[qi] === val ? null : val
       return next
     })
   }
 
-  function validateSN(ans) {
-    // Vsaka trditev mora biti ocenjena (S in N neodvisno)
-    if(ans.S === null || ans.N === null) return 'incomplete'
-    return 'ok'
+  function validateSN(val) {
+    return val !== null ? 'ok' : 'incomplete'
   }
 
   function calcSN(snAnswers) {
-    let sRaw = 0, nRaw = 0
-    snAnswers.forEach(a=>{
-      sRaw += parseInt(a.S) || 0
-      nRaw += parseInt(a.N) || 0
-    })
-    const sScore = parseFloat((sRaw / SN_N).toFixed(2))
-    const nScore = parseFloat((nRaw / SN_N).toFixed(2))
-    const diff = nScore - sScore
-    if(diff >= 0.3) return {type:'N', sScore, nScore, label:'Intuicija', diff:parseFloat(diff.toFixed(2))}
-    if(diff <= -0.3) return {type:'S', sScore, nScore, label:'Zaznavanje', diff:parseFloat(Math.abs(diff).toFixed(2))}
-    return {type:'U', sScore, nScore, label:'Uravnotežen', diff:parseFloat(Math.abs(diff).toFixed(2))}
+    const vals = snAnswers.filter(v=>v!==null).map(v=>parseInt(v))
+    if(vals.length === 0) return {type:'U', snScore:0, label:'Uravnotežen'}
+    const avg = parseFloat((vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2))
+    if(avg >= 0.5) return {type:'N', snScore:avg, label:'Intuicija'}
+    if(avg <= -0.5) return {type:'S', snScore:avg, label:'Zaznavanje'}
+    return {type:'U', snScore:avg, label:'Uravnotežen'}
   }
 
   function setVal(qi,color,val) {
@@ -136,13 +128,10 @@ export default function App() {
     try {
       const scores = calcScores(answers)
       const snResult = calcSN(snAnswers)
-      const snStr = snResult.type+'|S='+snResult.sScore+'|N='+snResult.nScore
       const params = new URLSearchParams({
         ime, email, podjetje, spol,
         B: scores.B, G: scores.G, Y: scores.Y, R: scores.R,
-        S: snResult.sScore,
-        N: snResult.nScore,
-        SN: snResult.type==='U'?'U='+snResult.sScore:snResult.type+'='+Math.max(snResult.sScore,snResult.nScore)
+        SN: snResult.snScore
       })
       await fetch(APPS_SCRIPT_URL+'?'+params.toString(),{method:'GET',mode:'no-cors'})
       setStep('done')
@@ -265,7 +254,7 @@ export default function App() {
   // ── QUESTIONNAIRE ─────────────────────────────────────────────────────────
   // SN vprašalnik — prikaže se po barvnih vprašanjih
   if(step==='sn') {
-    const allSnDone = snAnswers.every(a=>validateSN(a)==='ok')
+    const allSnDone = snAnswers.every(v=>validateSN(v)==='ok')
     return (
       <div style={{fontFamily:'system-ui,sans-serif',minHeight:'100vh',background:'#fafaf8',padding:'16px 16px 56px'}}>
         <style>{CSS}</style>
@@ -289,37 +278,39 @@ export default function App() {
               Za vsak par trditev označite katera vam je bolj podobna (<strong style={{color:'#1a1a1a'}}>M</strong>) in katera najmanj (<strong style={{color:'#1a1a1a'}}>L</strong>). Vrednosti <strong style={{color:'#1a1a1a'}}>1-5</strong> za vmesne stopnje.
             </div>
             {SN_QUESTIONS.map((q,qi)=>{
-              const a = snAnswers[qi]
+              const val = snAnswers[qi]
               return (
-                <div key={qi} style={{marginBottom:12,padding:'12px 13px',background:'#f9f7f4',borderRadius:12,border:'1.5px solid '+(validateSN(a)==='ok'?'#1a1a1a':'transparent'),transition:'border-color .15s'}}>
-                  <div style={{fontSize:10,fontWeight:700,color:'#aaa',marginBottom:10}}>Trditev {qi+1}</div>
-                  {['S','N'].map(side=>(
-                    <div key={side} style={{marginBottom:side==='S'?12:0}}>
-                      <div style={{display:'flex',alignItems:'flex-start',gap:8,marginBottom:7}}>
-                        <div style={{width:8,height:8,borderRadius:'50%',background:a[side]!==null?'#1a1a1a':'#d8d3cc',flexShrink:0,marginTop:4,transition:'background .15s'}}/>
-                        <div style={{fontSize:12,color:'#1a1a1a',fontWeight:a[side]!==null?600:400,flex:1,lineHeight:1.45}}>{q[side]}</div>
-                        {a[side]!==null&&<div style={{fontSize:10,fontWeight:700,color:'#1a1a1a',background:'#e5e0d8',padding:'2px 8px',borderRadius:20,flexShrink:0}}>{a[side]}/6</div>}
-                      </div>
-                      <div style={{display:'flex',gap:4}}>
-                        {SN_VALS.map(v=>{
-                          const isSel = a[side]===v
-                          return (
-                            <button key={v} onClick={()=>setSnVal(qi,side,v)} style={{
-                              flex:1,height:30,borderRadius:7,border:'none',
-                              background:isSel?'#1a1a1a':'#e5e0d8',
-                              color:isSel?'white':'#666',
-                              fontWeight:700,fontSize:11,cursor:'pointer',fontFamily:'inherit',
-                              boxShadow:isSel?'0 2px 8px rgba(0,0,0,0.2)':'none',
-                              transition:'all .1s'
-                            }}>{v}</button>
-                          )
-                        })}
-                      </div>
-                      <div style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#bbb',marginTop:3}}>
-                        <span>Sploh ne drži</span><span>Popolnoma drži</span>
-                      </div>
-                    </div>
-                  ))}
+                <div key={qi} style={{marginBottom:12,padding:'14px',background:'#f9f7f4',borderRadius:12,border:'1.5px solid '+(validateSN(val)==='ok'?'#1a1a1a':'transparent'),transition:'border-color .15s'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#aaa',marginBottom:12}}>Vprašanje {qi+1}</div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',gap:8,alignItems:'center',marginBottom:12}}>
+                    <div style={{fontSize:11,color:'#1a1a1a',lineHeight:1.5,fontWeight:val!==null&&parseInt(val)<0?700:400,textAlign:'right'}}>{q.S}</div>
+                    <div style={{width:1,height:32,background:'#e5e0d8',flexShrink:0}}/>
+                    <div style={{fontSize:11,color:'#1a1a1a',lineHeight:1.5,fontWeight:val!==null&&parseInt(val)>0?700:400}}>{q.N}</div>
+                  </div>
+                  <div style={{display:'flex',gap:3,alignItems:'center'}}>
+                    {SN_VALS.map(v=>{
+                      const isSel = val===v
+                      const num = parseInt(v)
+                      const isS = num < 0
+                      const isN = num > 0
+                      const isCenter = num === 0
+                      return (
+                        <button key={v} onClick={()=>setSnVal(qi,v)} style={{
+                          flex:1,height:34,borderRadius:7,border:'none',
+                          background:isSel?(isS?'#4a7ab5':isN?'#c49a10':'#555'):'#e5e0d8',
+                          color:isSel?'white':'#666',
+                          fontWeight:700,fontSize:11,cursor:'pointer',fontFamily:'inherit',
+                          boxShadow:isSel?'0 2px 8px rgba(0,0,0,0.25)':'none',
+                          transition:'all .1s',
+                          opacity:isSel?1:0.7+Math.abs(num)*0.05
+                        }}>{v}</button>
+                      )
+                    })}
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#bbb',marginTop:4}}>
+                    <span>← Zaznavanje</span>
+                    <span>Intuicija →</span>
+                  </div>
                 </div>
               )
             })}
@@ -458,10 +449,14 @@ export default function App() {
               </div>
             ))}
           </div>
-          <div style={{fontSize:12,color:'#888',lineHeight:1.65}}>
-            Vaša primarna energija je <strong style={{color:CLR[lead.k]}}>{CLR_NAME[lead.k]}</strong>.<br/>
-            Kmalu prejmete podroben osebnostni profil.
-          </div>
+          {(()=>{
+            const snRes = calcSN(snAnswers)
+            return <div style={{fontSize:12,color:'#888',lineHeight:1.75}}>
+              Vaša primarna energija je <strong style={{color:CLR[lead.k]}}>{CLR_NAME[lead.k]}</strong>.<br/>
+              Percepcijski stil: <strong style={{color:'#1a1a1a'}}>{snRes.label} ({snRes.snScore > 0 ? '+' : ''}{snRes.snScore})</strong>.<br/>
+              Kmalu prejmete podroben osebnostni profil.
+            </div>
+          })()}
         </div>
         <div style={{fontSize:11,color:'#ccc',lineHeight:1.7}}>Barvni kompas · Osebnostni profil</div>
       </div>
