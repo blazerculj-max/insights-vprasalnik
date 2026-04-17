@@ -25,7 +25,7 @@ const QUESTIONS = [
 
 const CLR = {B:'#4a7ab5',R:'#c94030',G:'#2e8a55',Y:'#c49a10'}
 const CLR_L = {B:'#e8f0fa',R:'#faeaea',G:'#e6f5ee',Y:'#fdf6e3'}
-const CLR_NAME = {B:'Cool Blue',R:'Fiery Red',G:'Earth Green',Y:'Sunshine Yellow'}
+const CLR_NAME = {B:'Analitična modra',R:'Aktivna rdeča',G:'Stabilna zelena',Y:'Navdušena rumena'}
 const COLORS = ['B','R','G','Y']
 
 function shuffle(arr, seed) {
@@ -122,7 +122,7 @@ export default function App() {
         <div className="fu" style={{display:'flex',alignItems:'center',gap:14,marginBottom:40}}>
           <ColorWheel size={52}/>
           <div>
-            <div style={{fontFamily:'Georgia,serif',fontSize:18,fontWeight:700,color:'#1a1a1a',letterSpacing:'-0.01em'}}>Insights Discovery</div>
+            <div style={{fontFamily:'Georgia,serif',fontSize:18,fontWeight:700,color:'#1a1a1a',letterSpacing:'-0.01em'}}>Barvni kompas</div>
             <div style={{fontSize:12,color:'#aaa',marginTop:1}}>Osebnostni profil</div>
           </div>
         </div>
@@ -227,7 +227,7 @@ export default function App() {
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
             <div style={{display:'flex',alignItems:'center',gap:10}}>
               <ColorWheel size={28}/>
-              <span style={{fontFamily:'Georgia,serif',fontSize:13,fontWeight:700,color:'#1a1a1a'}}>Insights Discovery</span>
+              <span style={{fontFamily:'Georgia,serif',fontSize:13,fontWeight:700,color:'#1a1a1a'}}>Barvni kompas</span>
             </div>
             <div style={{fontSize:12,color:'#888',fontWeight:600,background:'white',border:'1px solid #e8e4df',padding:'4px 10px',borderRadius:20}}>{current+1} / {QUESTIONS.length}</div>
           </div>
@@ -333,7 +333,7 @@ export default function App() {
             Kmalu prejmete podroben osebnostni profil.
           </div>
         </div>
-        <div style={{fontSize:11,color:'#ccc',lineHeight:1.7}}>Insights Discovery · Osebnostni profil</div>
+        <div style={{fontSize:11,color:'#ccc',lineHeight:1.7}}>Barvni kompas · Osebnostni profil</div>
       </div>
     </div>
   )
