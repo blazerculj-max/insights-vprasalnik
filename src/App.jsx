@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx7ShJLODvzjhjVZ3s6aSKHEfJfH5XOnfY_GvCLKiJVTCx1FESGaz44Q9Jw6DuUjbxi/exec'
 
 const SMAP = {L:0,'1':1,'2':2,'3':3,'4':4,'5':5,M:6}
 const N = 15
-const SN_N = 4  // število S/N vprašanj
+const SN_N = 4
 
 const QUESTIONS = [
   {B:'Natančen in diplomatski',R:'Usmerjen v rezultate in hiter',G:'Spodbujajoč in skrben',Y:'Odprt in družaben'},
@@ -24,8 +24,6 @@ const QUESTIONS = [
   {B:'Previden in natančen',R:'Odkrit in neposreden',G:'Sprejemajoč in zvest',Y:'Optimističen in vesel'},
 ]
 
-// S/N vprašanja — zaznavanje vs intuicija
-// Vsako se oceni neodvisno 0-6, ni obvezno izbrati 0 ali 6
 const SN_QUESTIONS = [
   {S:'Osredotočam se na konkretna dejstva in podrobnosti',N:'Iščem vzorce in skrite možnosti za dejstvi'},
   {S:'Zaupam preizkušenim metodam in preteklim izkušnjam',N:'Rad preizkušam nove pristope in nepreizkušene ideje'},
@@ -66,6 +64,19 @@ function calcScores(answers) {
   return con
 }
 
+function validateSN(val) {
+  return val !== null ? 'ok' : 'incomplete'
+}
+
+function calcSN(snAnswers) {
+  const vals = snAnswers.filter(v=>v!==null).map(v=>parseInt(v))
+  if(vals.length === 0) return {type:'U', snScore:0, label:'Uravnotežen'}
+  const avg = parseFloat((vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2))
+  if(avg >= 0.5) return {type:'N', snScore:avg, label:'Intuicija'}
+  if(avg <= -0.5) return {type:'S', snScore:avg, label:'Zaznavanje'}
+  return {type:'U', snScore:avg, label:'Uravnotežen'}
+}
+
 function ColorWheel({size=60}) {
   return (
     <svg width={size} height={size} viewBox="0 0 60 60">
@@ -85,34 +96,12 @@ export default function App() {
   const [podjetje, setPodjetje] = useState('')
   const [spol, setSpol] = useState('m')
   const [answers, setAnswers] = useState(Array(15).fill(null).map(()=>({B:null,R:null,G:null,Y:null})))
-  const [snAnswers, setSnAnswers] = useState(Array(4).fill(null)) // null ali -3 do +3
+  const [snAnswers, setSnAnswers] = useState(Array(4).fill(null))
   const [current, setCurrent] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
   const orders = QUESTIONS.map((_,i)=>shuffle(COLORS,i*999+42))
-
-  function setSnVal(qi, val) {
-    setSnAnswers(prev=>{
-      const next = [...prev]
-      // Toggle — klik na isto vrednost jo počisti
-      next[qi] = next[qi] === val ? null : val
-      return next
-    })
-  }
-
-  function validateSN(val) {
-    return val !== null ? 'ok' : 'incomplete'
-  }
-
-  function calcSN(snAnswers) {
-    const vals = snAnswers.filter(v=>v!==null).map(v=>parseInt(v))
-    if(vals.length === 0) return {type:'U', snScore:0, label:'Uravnotežen'}
-    const avg = parseFloat((vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2))
-    if(avg >= 0.5) return {type:'N', snScore:avg, label:'Intuicija'}
-    if(avg <= -0.5) return {type:'S', snScore:avg, label:'Zaznavanje'}
-    return {type:'U', snScore:avg, label:'Uravnotežen'}
-  }
 
   function setVal(qi,color,val) {
     setAnswers(prev=>{
@@ -123,15 +112,23 @@ export default function App() {
     })
   }
 
+  function setSnVal(qi, val) {
+    setSnAnswers(prev=>{
+      const next=[...prev]
+      next[qi] = next[qi]===val ? null : val
+      return next
+    })
+  }
+
   async function handleSubmit() {
     setSubmitting(true); setError('')
     try {
-      const scores = calcScores(answers)
-      const snResult = calcSN(snAnswers)
-      const params = new URLSearchParams({
+      const scores=calcScores(answers)
+      const snResult=calcSN(snAnswers)
+      const params=new URLSearchParams({
         ime, email, podjetje, spol,
-        B: scores.B, G: scores.G, Y: scores.Y, R: scores.R,
-        SN: snResult.snScore
+        B:scores.B, G:scores.G, Y:scores.Y, R:scores.R,
+        SN:snResult.snScore
       })
       await fetch(APPS_SCRIPT_URL+'?'+params.toString(),{method:'GET',mode:'no-cors'})
       setStep('done')
@@ -140,6 +137,7 @@ export default function App() {
   }
 
   const vals = ['L','1','2','3','4','5','M']
+
   const CSS = `
     @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
     .fu{animation:fadeUp .55s ease forwards}
@@ -149,11 +147,8 @@ export default function App() {
     input:focus{border-color:#1a1a1a !important;outline:none;background:white !important}
     button{transition:all .12s ease}
     .btn-primary:hover{opacity:.88;transform:translateY(-1px)}
-    .btn-nav:hover{border-color:#aaa}
-    .dot-btn:hover{opacity:.8}
   `
 
-  // ── INTRO ─────────────────────────────────────────────────────────────────
   if(step==='intro') return (
     <div style={{fontFamily:'system-ui,sans-serif',minHeight:'100vh',background:'#fafaf8',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
       <style>{CSS}</style>
@@ -161,25 +156,16 @@ export default function App() {
         <div className="fu" style={{display:'flex',alignItems:'center',gap:14,marginBottom:40}}>
           <ColorWheel size={52}/>
           <div>
-            <div style={{fontFamily:'Georgia,serif',fontSize:18,fontWeight:700,color:'#1a1a1a',letterSpacing:'-0.01em'}}>Barvni kompas</div>
+            <div style={{fontFamily:'Georgia,serif',fontSize:18,fontWeight:700,color:'#1a1a1a'}}>Barvni kompas</div>
             <div style={{fontSize:12,color:'#aaa',marginTop:1}}>Osebnostni profil</div>
           </div>
         </div>
         <div className="fu2">
-          <h1 style={{fontFamily:'Georgia,serif',fontSize:40,fontWeight:700,color:'#1a1a1a',lineHeight:1.05,marginBottom:18,letterSpacing:'-0.025em'}}>
-            Spoznajte<br/>svojo osebnost
-          </h1>
-          <p style={{fontSize:15,color:'#6b6460',lineHeight:1.8,marginBottom:32}}>
-            Vprašalnik temelji na Jungovi tipologiji in vam v 5–8 minutah razkrije vaš edinstveni osebnostni profil — kako razmišljate, komunicirate in delujete pod pritiskom.
-          </p>
+          <h1 style={{fontFamily:'Georgia,serif',fontSize:40,fontWeight:700,color:'#1a1a1a',lineHeight:1.05,marginBottom:18,letterSpacing:'-0.025em'}}>Spoznajte<br/>svojo osebnost</h1>
+          <p style={{fontSize:15,color:'#6b6460',lineHeight:1.8,marginBottom:32}}>Vprašalnik temelji na Jungovi tipologiji in vam v 5–8 minutah razkrije vaš edinstveni osebnostni profil — kako razmišljate, komunicirate in delujete pod pritiskom.</p>
         </div>
         <div className="fu3" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:32}}>
-          {[
-            {icon:'🎯',text:'Vaš delovni slog in komunikacija'},
-            {icon:'💡',text:'Prednosti in razvojne priložnosti'},
-            {icon:'👥',text:'Prispevek k timu in vodenje'},
-            {icon:'📊',text:'Prodajni profil in akcijski plan'},
-          ].map((item,i)=>(
+          {[{icon:'🎯',text:'Vaš delovni slog in komunikacija'},{icon:'💡',text:'Prednosti in razvojne priložnosti'},{icon:'👥',text:'Prispevek k timu in vodenje'},{icon:'📊',text:'Prodajni profil in akcijski plan'}].map((item,i)=>(
             <div key={i} style={{background:'white',border:'1px solid #e8e4df',borderRadius:12,padding:'13px 14px',display:'flex',alignItems:'flex-start',gap:10}}>
               <span style={{fontSize:17,flexShrink:0}}>{item.icon}</span>
               <span style={{fontSize:12,color:'#4a4a4a',lineHeight:1.55}}>{item.text}</span>
@@ -187,25 +173,18 @@ export default function App() {
           ))}
         </div>
         <div className="fu4">
-          <button className="btn-primary" onClick={()=>setStep('form')} style={{width:'100%',padding:'16px',background:'#1a1a1a',color:'white',border:'none',borderRadius:14,fontSize:16,fontWeight:600,cursor:'pointer',fontFamily:'inherit',letterSpacing:'-0.01em'}}>
-            Začni vprašalnik →
-          </button>
-          <p style={{textAlign:'center',fontSize:11,color:'#bbb',marginTop:14,lineHeight:1.65}}>
-            5–8 minut · 15 vprašanj · Vaši podatki so zaščiteni
-          </p>
+          <button className="btn-primary" onClick={()=>setStep('form')} style={{width:'100%',padding:'16px',background:'#1a1a1a',color:'white',border:'none',borderRadius:14,fontSize:16,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Začni vprašalnik →</button>
+          <p style={{textAlign:'center',fontSize:11,color:'#bbb',marginTop:14,lineHeight:1.65}}>5–8 minut · 15 vprašanj · Vaši podatki so zaščiteni</p>
         </div>
       </div>
     </div>
   )
 
-  // ── FORM ──────────────────────────────────────────────────────────────────
   if(step==='form') return (
     <div style={{fontFamily:'system-ui,sans-serif',minHeight:'100vh',background:'#fafaf8',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
       <style>{CSS}</style>
       <div style={{maxWidth:420,width:'100%'}}>
-        <button onClick={()=>setStep('intro')} style={{background:'none',border:'none',fontSize:13,color:'#aaa',cursor:'pointer',padding:'0 0 20px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}}>
-          ← Nazaj
-        </button>
+        <button onClick={()=>setStep('intro')} style={{background:'none',border:'none',fontSize:13,color:'#aaa',cursor:'pointer',padding:'0 0 20px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}}>← Nazaj</button>
         <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:24}}>
           <ColorWheel size={36}/>
           <div>
@@ -214,24 +193,17 @@ export default function App() {
           </div>
         </div>
         <div style={{background:'white',borderRadius:16,padding:'24px',border:'1px solid #e8e4df',marginBottom:12}}>
-          {[
-            {id:'ime',label:'Ime in priimek',placeholder:'Jana Novak',val:ime,set:setIme,type:'text'},
-            {id:'email',label:'E-pošta',placeholder:'jana@podjetje.si',val:email,set:setEmail,type:'email'},
-            {id:'podjetje',label:'Podjetje (neobvezno)',placeholder:'Podjetje d.o.o.',val:podjetje,set:setPodjetje,type:'text'},
-          ].map(f=>(
+          {[{id:'ime',label:'Ime in priimek',placeholder:'Jana Novak',val:ime,set:setIme,type:'text'},{id:'email',label:'E-pošta',placeholder:'jana@podjetje.si',val:email,set:setEmail,type:'email'},{id:'podjetje',label:'Podjetje (neobvezno)',placeholder:'Podjetje d.o.o.',val:podjetje,set:setPodjetje,type:'text'}].map(f=>(
             <div key={f.id} style={{marginBottom:16}}>
               <label style={{display:'block',fontSize:10,fontWeight:700,color:'#999',textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>{f.label}</label>
-              <input type={f.type} value={f.val} onChange={e=>f.set(e.target.value)} placeholder={f.placeholder}
-                style={{width:'100%',padding:'11px 14px',border:'1.5px solid #e5e0d8',borderRadius:10,fontSize:14,fontFamily:'inherit',boxSizing:'border-box',background:'#fafaf8',transition:'border-color .15s,background .15s',color:'#1a1a1a'}}/>
+              <input type={f.type} value={f.val} onChange={e=>f.set(e.target.value)} placeholder={f.placeholder} style={{width:'100%',padding:'11px 14px',border:'1.5px solid #e5e0d8',borderRadius:10,fontSize:14,fontFamily:'inherit',boxSizing:'border-box',background:'#fafaf8',color:'#1a1a1a'}}/>
             </div>
           ))}
           <div>
             <label style={{display:'block',fontSize:10,fontWeight:700,color:'#999',textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Spol</label>
             <div style={{display:'flex',gap:8}}>
               {[{v:'m',l:'Moški'},{v:'z',l:'Ženski'}].map(({v,l})=>(
-                <button key={v} onClick={()=>setSpol(v)} style={{flex:1,padding:'11px',border:'1.5px solid '+(spol===v?'#1a1a1a':'#e5e0d8'),borderRadius:10,fontSize:14,fontFamily:'inherit',background:spol===v?'#1a1a1a':'white',color:spol===v?'white':'#666',cursor:'pointer',fontWeight:spol===v?600:400}}>
-                  {l}
-                </button>
+                <button key={v} onClick={()=>setSpol(v)} style={{flex:1,padding:'11px',border:'1.5px solid '+(spol===v?'#1a1a1a':'#e5e0d8'),borderRadius:10,fontSize:14,fontFamily:'inherit',background:spol===v?'#1a1a1a':'white',color:spol===v?'white':'#666',cursor:'pointer',fontWeight:spol===v?600:400}}>{l}</button>
               ))}
             </div>
           </div>
@@ -241,93 +213,11 @@ export default function App() {
           if(!ime.trim()) return setError('Vnesite ime in priimek')
           if(!email.trim()||!email.includes('@')) return setError('Vnesite veljaven e-naslov')
           setError(''); setStep('questionnaire')
-        }} style={{width:'100%',padding:'14px',background:'#1a1a1a',color:'white',border:'none',borderRadius:12,fontSize:15,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-          Nadaljuj →
-        </button>
-        <p style={{textAlign:'center',fontSize:11,color:'#bbb',marginTop:12,lineHeight:1.65}}>
-          Vaši podatki so zaščiteni in se ne delijo s tretjimi osebami.
-        </p>
+        }} style={{width:'100%',padding:'14px',background:'#1a1a1a',color:'white',border:'none',borderRadius:12,fontSize:15,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Nadaljuj →</button>
+        <p style={{textAlign:'center',fontSize:11,color:'#bbb',marginTop:12,lineHeight:1.65}}>Vaši podatki so zaščiteni in se ne delijo s tretjimi osebami.</p>
       </div>
     </div>
   )
-
-  // ── QUESTIONNAIRE ─────────────────────────────────────────────────────────
-  // SN vprašalnik — prikaže se po barvnih vprašanjih
-  if(step==='sn') {
-    const allSnDone = snAnswers.every(v=>validateSN(v)==='ok')
-    return (
-      <div style={{fontFamily:'system-ui,sans-serif',minHeight:'100vh',background:'#fafaf8',padding:'16px 16px 56px'}}>
-        <style>{CSS}</style>
-        <div style={{maxWidth:560,margin:'0 auto'}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-            <div style={{display:'flex',alignItems:'center',gap:10}}>
-              <ColorWheel size={28}/>
-              <span style={{fontFamily:'Georgia,serif',fontSize:13,fontWeight:700,color:'#1a1a1a'}}>Barvni kompas</span>
-            </div>
-            <div style={{fontSize:12,color:'#888',fontWeight:600,background:'white',border:'1px solid #e8e4df',padding:'4px 10px',borderRadius:20}}>2. del · 4 vprašanja</div>
-          </div>
-          <div style={{marginBottom:18}}>
-            <div style={{height:4,background:'#e5e0d8',borderRadius:4,overflow:'hidden',marginBottom:5}}>
-              <div style={{height:'100%',background:'#1a1a1a',width:'100%',borderRadius:4}}/>
-            </div>
-            <div style={{fontSize:10,color:'#bbb'}}>Barvna vprašanja končana · Zdaj: stil zaznavanja</div>
-          </div>
-          <div style={{background:'white',borderRadius:16,padding:'18px',marginBottom:12,border:'1px solid #e8e4df',boxShadow:'0 2px 16px rgba(0,0,0,.04)'}}>
-            <div style={{fontSize:10,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.1em',marginBottom:10}}>Stil zaznavanja</div>
-            <div style={{fontSize:11,color:'#888',lineHeight:1.65,marginBottom:14,padding:'9px 12px',background:'#f9f7f4',borderRadius:8}}>
-              Za vsak par trditev označite katera vam je bolj podobna (<strong style={{color:'#1a1a1a'}}>M</strong>) in katera najmanj (<strong style={{color:'#1a1a1a'}}>L</strong>). Vrednosti <strong style={{color:'#1a1a1a'}}>1-5</strong> za vmesne stopnje.
-            </div>
-            {SN_QUESTIONS.map((q,qi)=>{
-              const val = snAnswers[qi]
-              return (
-                <div key={qi} style={{marginBottom:12,padding:'14px',background:'#f9f7f4',borderRadius:12,border:'1.5px solid '+(validateSN(val)==='ok'?'#1a1a1a':'transparent'),transition:'border-color .15s'}}>
-                  <div style={{fontSize:10,fontWeight:700,color:'#aaa',marginBottom:12}}>Vprašanje {qi+1}</div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',gap:8,alignItems:'center',marginBottom:12}}>
-                    <div style={{fontSize:11,color:'#1a1a1a',lineHeight:1.5,fontWeight:val!==null&&parseInt(val)<0?700:400,textAlign:'right'}}>{q.S}</div>
-                    <div style={{width:1,height:32,background:'#e5e0d8',flexShrink:0}}/>
-                    <div style={{fontSize:11,color:'#1a1a1a',lineHeight:1.5,fontWeight:val!==null&&parseInt(val)>0?700:400}}>{q.N}</div>
-                  </div>
-                  <div style={{display:'flex',gap:3,alignItems:'center'}}>
-                    {SN_VALS.map(v=>{
-                      const isSel = val===v
-                      const num = parseInt(v)
-                      const isS = num < 0
-                      const isN = num > 0
-                      const isCenter = num === 0
-                      return (
-                        <button key={v} onClick={()=>setSnVal(qi,v)} style={{
-                          flex:1,height:34,borderRadius:7,border:'none',
-                          background:isSel?(isS?'#4a7ab5':isN?'#c49a10':'#555'):'#e5e0d8',
-                          color:isSel?'white':'#666',
-                          fontWeight:700,fontSize:11,cursor:'pointer',fontFamily:'inherit',
-                          boxShadow:isSel?'0 2px 8px rgba(0,0,0,0.25)':'none',
-                          transition:'all .1s',
-                          opacity:isSel?1:0.7+Math.abs(num)*0.05
-                        }}>{v}</button>
-                      )
-                    })}
-                </div>
-              )
-            })}
-          </div>
-          <div style={{display:'flex',gap:10,marginBottom:14}}>
-            <button onClick={()=>setStep('questionnaire')} style={{padding:'12px 18px',background:'white',border:'1.5px solid #e5e0d8',borderRadius:12,fontSize:13,color:'#555',cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>← Nazaj</button>
-            <div style={{flex:1}}/>
-            <button className="btn-primary" onClick={handleSubmit} disabled={!allSnDone||submitting} style={{
-              padding:'12px 24px',background:allSnDone&&!submitting?'#2e8a55':'#ddd',
-              color:allSnDone&&!submitting?'white':'#aaa',border:'none',borderRadius:12,
-              fontSize:13,fontWeight:600,cursor:allSnDone&&!submitting?'pointer':'default',fontFamily:'inherit'
-            }}>{submitting?'Pošiljam...':'✓ Oddaj vprašalnik'}</button>
-          </div>
-          <div style={{display:'flex',justifyContent:'center',gap:5}}>
-            {SN_QUESTIONS.map((_,i)=>(
-              <div key={i} style={{width:8,height:8,borderRadius:'50%',background:validateSN(snAnswers[i])==='ok'?'#2e8a55':'#e5e0d8',transition:'background .2s'}}/>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   if(step==='questionnaire') {
     const q=QUESTIONS[current], a=answers[current], order=orders[current]
@@ -335,7 +225,6 @@ export default function App() {
     const allDone=answers.every(ans=>validate(ans)==='ok')
     const done=answers.filter(ans=>validate(ans)==='ok').length
     const pct=Math.round(done/QUESTIONS.length*100)
-
     return (
       <div style={{fontFamily:'system-ui,sans-serif',minHeight:'100vh',background:'#fafaf8',padding:'16px 16px 56px'}}>
         <style>{CSS}</style>
@@ -366,49 +255,30 @@ export default function App() {
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:9}}>
                   <div style={{width:8,height:8,borderRadius:'50%',background:a[k]?'#1a1a1a':'#d8d3cc',flexShrink:0,transition:'background .15s'}}/>
                   <div style={{fontSize:13,color:'#1a1a1a',fontWeight:a[k]?600:400,lineHeight:1.4,flex:1}}>{q[k]}</div>
-                  {a[k]&&<div style={{fontSize:9,fontWeight:800,color:'#1a1a1a',background:'#e5e0d8',padding:'2px 8px',borderRadius:20,flexShrink:0,letterSpacing:'0.04em'}}>
-                    {a[k]==='L'?'NAJMANJ':a[k]==='M'?'NAJBOLJ':a[k]}
-                  </div>}
+                  {a[k]&&<div style={{fontSize:9,fontWeight:800,color:'#1a1a1a',background:'#e5e0d8',padding:'2px 8px',borderRadius:20,flexShrink:0}}>{a[k]==='L'?'NAJMANJ':a[k]==='M'?'NAJBOLJ':a[k]}</div>}
                 </div>
                 <div style={{display:'flex',gap:4}}>
                   {vals.map(v=>{
                     const isSel=a[k]===v, isUsed=!isSel&&Object.values(a).includes(v)
-                    return (
-                      <button key={v} onClick={()=>setVal(current,k,v)} style={{
-                        flex:1,height:33,borderRadius:7,border:'none',
-                        background:isSel?'#1a1a1a':isUsed?'#ede9e3':'#e5e0d8',
-                        color:isSel?'white':isUsed?'#ccc':'#666',
-                        fontWeight:700,fontSize:11,cursor:isUsed?'default':'pointer',fontFamily:'inherit',
-                        boxShadow:isSel?'0 2px 8px rgba(0,0,0,0.2)':'none',
-                        transition:'all .1s',opacity:isUsed?0.45:1
-                      }}>{v}</button>
-                    )
+                    return <button key={v} onClick={()=>setVal(current,k,v)} style={{flex:1,height:33,borderRadius:7,border:'none',background:isSel?'#1a1a1a':isUsed?'#ede9e3':'#e5e0d8',color:isSel?'white':isUsed?'#ccc':'#666',fontWeight:700,fontSize:11,cursor:isUsed?'default':'pointer',fontFamily:'inherit',boxShadow:isSel?'0 2px 8px rgba(0,0,0,0.2)':'none',transition:'all .1s',opacity:isUsed?0.45:1}}>{v}</button>
                   })}
-                </div>
-                <div style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#ccc',marginTop:4}}>
-                  <span>Najmanj podoben</span><span>Najbolj podoben</span>
                 </div>
               </div>
             ))}
-            {vstat!=='ok'&&vstat!=='incomplete'&&(
-              <div style={{fontSize:12,color:'#c94030',marginTop:8,padding:'7px 12px',background:'#faeaea',borderRadius:8}}>⚠ {vstat}</div>
-            )}
+            {vstat!=='ok'&&vstat!=='incomplete'&&<div style={{fontSize:12,color:'#c94030',marginTop:8,padding:'7px 12px',background:'#faeaea',borderRadius:8}}>⚠ {vstat}</div>}
           </div>
           <div style={{display:'flex',gap:10,marginBottom:14}}>
-            <button className="btn-nav" onClick={()=>setCurrent(c=>Math.max(0,c-1))} disabled={current===0} style={{padding:'12px 18px',background:'white',border:'1.5px solid #e5e0d8',borderRadius:12,fontSize:13,color:current===0?'#ccc':'#555',cursor:current===0?'default':'pointer',fontFamily:'inherit',fontWeight:500}}>← Nazaj</button>
+            <button onClick={()=>setCurrent(c=>Math.max(0,c-1))} disabled={current===0} style={{padding:'12px 18px',background:'white',border:'1.5px solid #e5e0d8',borderRadius:12,fontSize:13,color:current===0?'#ccc':'#555',cursor:current===0?'default':'pointer',fontFamily:'inherit',fontWeight:500}}>← Nazaj</button>
             <div style={{flex:1}}/>
-            {current<QUESTIONS.length-1?(
-              <button className="btn-primary" onClick={()=>vstat==='ok'&&setCurrent(c=>c+1)} disabled={vstat!=='ok'} style={{padding:'12px 24px',background:vstat==='ok'?'#1a1a1a':'#ddd',color:vstat==='ok'?'white':'#aaa',border:'none',borderRadius:12,fontSize:13,fontWeight:600,cursor:vstat==='ok'?'pointer':'default',fontFamily:'inherit'}}>Naprej →</button>
-            ):(
-              <button className="btn-primary" onClick={()=>allDone&&setStep('sn')} disabled={!allDone} style={{padding:'12px 24px',background:allDone?'#1a1a1a':'#ddd',color:allDone?'white':'#aaa',border:'none',borderRadius:12,fontSize:13,fontWeight:600,cursor:allDone?'pointer':'default',fontFamily:'inherit'}}>
-                Nadaljuj →
-              </button>
-            )}
+            {current<QUESTIONS.length-1
+              ? <button className="btn-primary" onClick={()=>vstat==='ok'&&setCurrent(c=>c+1)} disabled={vstat!=='ok'} style={{padding:'12px 24px',background:vstat==='ok'?'#1a1a1a':'#ddd',color:vstat==='ok'?'white':'#aaa',border:'none',borderRadius:12,fontSize:13,fontWeight:600,cursor:vstat==='ok'?'pointer':'default',fontFamily:'inherit'}}>Naprej →</button>
+              : <button className="btn-primary" onClick={()=>allDone&&setStep('sn')} disabled={!allDone} style={{padding:'12px 24px',background:allDone?'#1a1a1a':'#ddd',color:allDone?'white':'#aaa',border:'none',borderRadius:12,fontSize:13,fontWeight:600,cursor:allDone?'pointer':'default',fontFamily:'inherit'}}>Nadaljuj →</button>
+            }
           </div>
           <div style={{display:'flex',justifyContent:'center',gap:5,flexWrap:'wrap'}}>
             {QUESTIONS.map((_,i)=>{
               const s=validate(answers[i])
-              return <button key={i} className="dot-btn" onClick={()=>setCurrent(i)} style={{width:i===current?22:8,height:8,borderRadius:4,border:'none',cursor:'pointer',background:s==='ok'?'#2e8a55':i===current?'#1a1a1a':'#e5e0d8',transition:'all .2s ease',padding:0}}/>
+              return <button key={i} onClick={()=>setCurrent(i)} style={{width:i===current?22:8,height:8,borderRadius:4,border:'none',cursor:'pointer',background:s==='ok'?'#2e8a55':i===current?'#1a1a1a':'#e5e0d8',transition:'all .2s ease',padding:0}}/>
             })}
           </div>
         </div>
@@ -416,10 +286,69 @@ export default function App() {
     )
   }
 
-  // ── DONE ──────────────────────────────────────────────────────────────────
+  if(step==='sn') {
+    const allSnDone = snAnswers.every(v=>validateSN(v)==='ok')
+    return (
+      <div style={{fontFamily:'system-ui,sans-serif',minHeight:'100vh',background:'#fafaf8',padding:'16px 16px 56px'}}>
+        <style>{CSS}</style>
+        <div style={{maxWidth:560,margin:'0 auto'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              <ColorWheel size={28}/>
+              <span style={{fontFamily:'Georgia,serif',fontSize:13,fontWeight:700,color:'#1a1a1a'}}>Barvni kompas</span>
+            </div>
+            <div style={{fontSize:12,color:'#888',fontWeight:600,background:'white',border:'1px solid #e8e4df',padding:'4px 10px',borderRadius:20}}>2. del · 4 vprašanja</div>
+          </div>
+          <div style={{marginBottom:18}}>
+            <div style={{height:4,background:'#e5e0d8',borderRadius:4,overflow:'hidden',marginBottom:5}}>
+              <div style={{height:'100%',background:'#1a1a1a',width:'100%',borderRadius:4}}/>
+            </div>
+            <div style={{fontSize:10,color:'#bbb'}}>Barvna vprašanja končana · Zadnji del</div>
+          </div>
+          <div style={{background:'white',borderRadius:16,padding:'18px',marginBottom:12,border:'1px solid #e8e4df',boxShadow:'0 2px 16px rgba(0,0,0,.04)'}}>
+            <div style={{fontSize:10,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.1em',marginBottom:12}}>Stil razmišljanja</div>
+            <div style={{fontSize:11,color:'#888',lineHeight:1.65,marginBottom:14,padding:'9px 12px',background:'#f9f7f4',borderRadius:8}}>
+              Za vsak par trditev označite kje se nahajate. Izberite vrednost ki vam je najbližje.
+            </div>
+            {SN_QUESTIONS.map((q,qi)=>{
+              const val = snAnswers[qi]
+              return (
+                <div key={qi} style={{marginBottom:12,padding:'14px',background:'#f9f7f4',borderRadius:12,border:'1.5px solid '+(validateSN(val)==='ok'?'#1a1a1a':'transparent'),transition:'border-color .15s'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#aaa',marginBottom:12}}>Vprašanje {qi+1}</div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',gap:10,alignItems:'center',marginBottom:12}}>
+                    <div style={{fontSize:11,color:'#1a1a1a',lineHeight:1.5,fontWeight:val!==null&&parseInt(val)<0?700:400,textAlign:'right'}}>{q.S}</div>
+                    <div style={{width:1,height:36,background:'#e5e0d8',flexShrink:0}}/>
+                    <div style={{fontSize:11,color:'#1a1a1a',lineHeight:1.5,fontWeight:val!==null&&parseInt(val)>0?700:400}}>{q.N}</div>
+                  </div>
+                  <div style={{display:'flex',gap:3}}>
+                    {SN_VALS.map(v=>{
+                      const isSel=val===v, num=parseInt(v)
+                      return <button key={v} onClick={()=>setSnVal(qi,v)} style={{flex:1,height:34,borderRadius:7,border:'none',background:isSel?(num<0?'#4a7ab5':num>0?'#c49a10':'#555'):'#e5e0d8',color:isSel?'white':'#666',fontWeight:700,fontSize:11,cursor:'pointer',fontFamily:'inherit',boxShadow:isSel?'0 2px 8px rgba(0,0,0,0.25)':'none',transition:'all .1s'}}>{v}</button>
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <div style={{display:'flex',gap:10,marginBottom:14}}>
+            <button onClick={()=>setStep('questionnaire')} style={{padding:'12px 18px',background:'white',border:'1.5px solid #e5e0d8',borderRadius:12,fontSize:13,color:'#555',cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>← Nazaj</button>
+            <div style={{flex:1}}/>
+            <button className="btn-primary" onClick={handleSubmit} disabled={!allSnDone||submitting} style={{padding:'12px 24px',background:allSnDone&&!submitting?'#2e8a55':'#ddd',color:allSnDone&&!submitting?'white':'#aaa',border:'none',borderRadius:12,fontSize:13,fontWeight:600,cursor:allSnDone&&!submitting?'pointer':'default',fontFamily:'inherit'}}>{submitting?'Pošiljam...':'✓ Oddaj vprašalnik'}</button>
+          </div>
+          <div style={{display:'flex',justifyContent:'center',gap:5}}>
+            {SN_QUESTIONS.map((_,i)=>(
+              <div key={i} style={{width:8,height:8,borderRadius:'50%',background:validateSN(snAnswers[i])==='ok'?'#2e8a55':'#e5e0d8',transition:'background .2s'}}/>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const scores=calcScores(answers)
   const sorted=['B','R','G','Y'].map(k=>({k,v:scores[k]})).sort((a,b)=>b.v-a.v)
   const lead=sorted[0]
+  const snResult=calcSN(snAnswers)
 
   return (
     <div style={{fontFamily:'system-ui,sans-serif',minHeight:'100vh',background:'#fafaf8',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
@@ -428,9 +357,7 @@ export default function App() {
         <div className="fu" style={{width:76,height:76,borderRadius:'50%',background:CLR_L[lead.k],border:'3px solid '+CLR[lead.k],display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',fontSize:30}}>✓</div>
         <div className="fu2">
           <h1 style={{fontFamily:'Georgia,serif',fontSize:30,fontWeight:700,color:'#1a1a1a',marginBottom:10,letterSpacing:'-0.02em'}}>Hvala, {ime.trim().split(' ')[0]}!</h1>
-          <p style={{fontSize:14,color:'#6b6460',lineHeight:1.8,marginBottom:28}}>
-            Vaš vprašalnik je bil uspešno oddan. Vaš osebnostni profil bomo pripravili in vam ga posredovali na <strong style={{color:'#1a1a1a'}}>{email}</strong>.
-          </p>
+          <p style={{fontSize:14,color:'#6b6460',lineHeight:1.8,marginBottom:28}}>Vaš vprašalnik je bil uspešno oddan. Vaš osebnostni profil bomo pripravili in vam ga posredovali na <strong style={{color:'#1a1a1a'}}>{email}</strong>.</p>
         </div>
         <div className="fu3" style={{background:'white',borderRadius:16,padding:'20px 24px',border:'1px solid #e8e4df',marginBottom:20}}>
           <div style={{fontSize:10,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:16}}>Vaš prevladujoč profil</div>
@@ -444,14 +371,11 @@ export default function App() {
               </div>
             ))}
           </div>
-          {(()=>{
-            const snRes = calcSN(snAnswers)
-            return <div style={{fontSize:12,color:'#888',lineHeight:1.75}}>
-              Vaša primarna energija je <strong style={{color:CLR[lead.k]}}>{CLR_NAME[lead.k]}</strong>.<br/>
-              Percepcijski stil: <strong style={{color:'#1a1a1a'}}>{snRes.label} ({snRes.snScore > 0 ? '+' : ''}{snRes.snScore})</strong>.<br/>
-              Kmalu prejmete podroben osebnostni profil.
-            </div>
-          })()}
+          <div style={{fontSize:12,color:'#888',lineHeight:1.75}}>
+            Vaša primarna energija je <strong style={{color:CLR[lead.k]}}>{CLR_NAME[lead.k]}</strong>.<br/>
+            Percepcijski stil: <strong style={{color:'#1a1a1a'}}>{snResult.label} ({snResult.snScore>0?'+':''}{snResult.snScore})</strong>.<br/>
+            Kmalu prejmete podroben osebnostni profil.
+          </div>
         </div>
         <div style={{fontSize:11,color:'#ccc',lineHeight:1.7}}>Barvni kompas · Osebnostni profil</div>
       </div>
