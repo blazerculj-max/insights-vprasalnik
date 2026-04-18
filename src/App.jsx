@@ -1,3 +1,5 @@
+// Samo 3 spremembe označene z // ← NOVO
+
 import { useState } from 'react'
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx7ShJLODvzjhjVZ3s6aSKHEfJfH5XOnfY_GvCLKiJVTCx1FESGaz44Q9Jw6DuUjbxi/exec'
@@ -94,6 +96,7 @@ export default function App() {
   const [ime, setIme] = useState('')
   const [email, setEmail] = useState('')
   const [podjetje, setPodjetje] = useState('')
+  const [delovnoMesto, setDelovnoMesto] = useState('') // ← NOVO
   const [spol, setSpol] = useState('m')
   const [answers, setAnswers] = useState(Array(15).fill(null).map(()=>({B:null,R:null,G:null,Y:null})))
   const [snAnswers, setSnAnswers] = useState(Array(4).fill(null))
@@ -126,7 +129,7 @@ export default function App() {
       const scores=calcScores(answers)
       const snResult=calcSN(snAnswers)
       const params=new URLSearchParams({
-        ime, email, podjetje, spol,
+        ime, email, podjetje, delovno_mesto: delovnoMesto, spol, // ← NOVO: dodano delovno_mesto
         B:scores.B, G:scores.G, Y:scores.Y, R:scores.R,
         SN:snResult.snScore
       })
@@ -193,7 +196,12 @@ export default function App() {
           </div>
         </div>
         <div style={{background:'white',borderRadius:16,padding:'24px',border:'1px solid #e8e4df',marginBottom:12}}>
-          {[{id:'ime',label:'Ime in priimek',placeholder:'Jana Novak',val:ime,set:setIme,type:'text'},{id:'email',label:'E-pošta',placeholder:'jana@podjetje.si',val:email,set:setEmail,type:'email'},{id:'podjetje',label:'Podjetje (neobvezno)',placeholder:'Podjetje d.o.o.',val:podjetje,set:setPodjetje,type:'text'}].map(f=>(
+          {[
+            {id:'ime',label:'Ime in priimek',placeholder:'Jana Novak',val:ime,set:setIme,type:'text'},
+            {id:'email',label:'E-pošta',placeholder:'jana@podjetje.si',val:email,set:setEmail,type:'email'},
+            {id:'podjetje',label:'Podjetje (neobvezno)',placeholder:'Podjetje d.o.o.',val:podjetje,set:setPodjetje,type:'text'},
+            {id:'delovno_mesto',label:'Delovno mesto (neobvezno)',placeholder:'npr. Prodajalec, Manager, Coach...',val:delovnoMesto,set:setDelovnoMesto,type:'text'}, // ← NOVO
+          ].map(f=>(
             <div key={f.id} style={{marginBottom:16}}>
               <label style={{display:'block',fontSize:10,fontWeight:700,color:'#999',textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>{f.label}</label>
               <input type={f.type} value={f.val} onChange={e=>f.set(e.target.value)} placeholder={f.placeholder} style={{width:'100%',padding:'11px 14px',border:'1.5px solid #e5e0d8',borderRadius:10,fontSize:14,fontFamily:'inherit',boxSizing:'border-box',background:'#fafaf8',color:'#1a1a1a'}}/>
