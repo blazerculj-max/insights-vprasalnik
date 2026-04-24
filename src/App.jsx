@@ -1,4 +1,4 @@
-// Samo 3 spremembe označene z // ← NOVO
+// Barvni kompas — App.jsx z GDPR privolitvijo
 
 import { useState } from 'react'
 
@@ -96,8 +96,9 @@ export default function App() {
   const [ime, setIme] = useState('')
   const [email, setEmail] = useState('')
   const [podjetje, setPodjetje] = useState('')
-  const [delovnoMesto, setDelovnoMesto] = useState('') // ← NOVO
+  const [delovnoMesto, setDelovnoMesto] = useState('')
   const [spol, setSpol] = useState('m')
+  const [gdprSoglasje, setGdprSoglasje] = useState(false)
   const [answers, setAnswers] = useState(Array(15).fill(null).map(()=>({B:null,R:null,G:null,Y:null})))
   const [snAnswers, setSnAnswers] = useState(Array(4).fill(null))
   const [current, setCurrent] = useState(0)
@@ -129,7 +130,7 @@ export default function App() {
       const scores=calcScores(answers)
       const snResult=calcSN(snAnswers)
       const params=new URLSearchParams({
-        ime, email, podjetje, delovno_mesto: delovnoMesto, spol, // ← NOVO: dodano delovno_mesto
+        ime, email, podjetje, delovno_mesto: delovnoMesto, spol,
         B:scores.B, G:scores.G, Y:scores.Y, R:scores.R,
         SN:snResult.snScore
       })
@@ -152,6 +153,7 @@ export default function App() {
     .btn-primary:hover{opacity:.88;transform:translateY(-1px)}
   `
 
+  // ── INTRO ──────────────────────────────────────────────────────────────────
   if(step==='intro') return (
     <div style={{fontFamily:'system-ui,sans-serif',minHeight:'100vh',background:'#fafaf8',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
       <style>{CSS}</style>
@@ -183,6 +185,7 @@ export default function App() {
     </div>
   )
 
+  // ── FORM ───────────────────────────────────────────────────────────────────
   if(step==='form') return (
     <div style={{fontFamily:'system-ui,sans-serif',minHeight:'100vh',background:'#fafaf8',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
       <style>{CSS}</style>
@@ -200,7 +203,7 @@ export default function App() {
             {id:'ime',label:'Ime in priimek',placeholder:'Jana Novak',val:ime,set:setIme,type:'text'},
             {id:'email',label:'E-pošta',placeholder:'jana@podjetje.si',val:email,set:setEmail,type:'email'},
             {id:'podjetje',label:'Podjetje (neobvezno)',placeholder:'Podjetje d.o.o.',val:podjetje,set:setPodjetje,type:'text'},
-            {id:'delovno_mesto',label:'Delovno mesto (neobvezno)',placeholder:'npr. Prodajalec, Manager, Coach...',val:delovnoMesto,set:setDelovnoMesto,type:'text'}, // ← NOVO
+            {id:'delovno_mesto',label:'Delovno mesto (neobvezno)',placeholder:'npr. Prodajalec, Manager, Coach...',val:delovnoMesto,set:setDelovnoMesto,type:'text'},
           ].map(f=>(
             <div key={f.id} style={{marginBottom:16}}>
               <label style={{display:'block',fontSize:10,fontWeight:700,color:'#999',textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>{f.label}</label>
@@ -216,17 +219,82 @@ export default function App() {
             </div>
           </div>
         </div>
+
+        {/* GDPR privolitev */}
+        <div style={{marginBottom:12,padding:'14px 16px',background:'#f9f7f4',borderRadius:12,border:'1px solid #e8e4df'}}>
+          <label style={{display:'flex',alignItems:'flex-start',gap:10,cursor:'pointer'}}>
+            <input
+              type="checkbox"
+              checked={gdprSoglasje}
+              onChange={e=>setGdprSoglasje(e.target.checked)}
+              style={{marginTop:3,width:16,height:16,accentColor:'#1a1a1a',flexShrink:0,cursor:'pointer'}}
+            />
+            <span style={{fontSize:12,color:'#4a4a4a',lineHeight:1.7}}>
+              Strinjam se z{' '}
+              <button
+                onClick={()=>setStep('zasebnost')}
+                style={{background:'none',border:'none',padding:0,fontSize:12,color:'#1a1a1a',textDecoration:'underline',cursor:'pointer',fontFamily:'inherit',fontWeight:600}}
+              >
+                Politiko zasebnosti
+              </button>
+              . Moje podatke bo obdeloval izvajalec Barvnega kompasa izključno za pripravo osebnostnega profila. Podatki se hranijo največ 2 leti in ne delijo s tretjimi osebami.
+            </span>
+          </label>
+        </div>
+
         {error&&<div style={{color:'#c94030',fontSize:13,marginBottom:10,textAlign:'center',padding:'8px',background:'#faeaea',borderRadius:8}}>{error}</div>}
+
         <button className="btn-primary" onClick={()=>{
           if(!ime.trim()) return setError('Vnesite ime in priimek')
           if(!email.trim()||!email.includes('@')) return setError('Vnesite veljaven e-naslov')
+          if(!gdprSoglasje) return setError('Strinjati se morate s politiko zasebnosti')
           setError(''); setStep('questionnaire')
-        }} style={{width:'100%',padding:'14px',background:'#1a1a1a',color:'white',border:'none',borderRadius:12,fontSize:15,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>Nadaljuj →</button>
-        <p style={{textAlign:'center',fontSize:11,color:'#bbb',marginTop:12,lineHeight:1.65}}>Vaši podatki so zaščiteni in se ne delijo s tretjimi osebami.</p>
+        }} style={{width:'100%',padding:'14px',background:gdprSoglasje?'#1a1a1a':'#ccc',color:'white',border:'none',borderRadius:12,fontSize:15,fontWeight:600,cursor:gdprSoglasje?'pointer':'default',fontFamily:'inherit'}}>Nadaljuj →</button>
       </div>
     </div>
   )
 
+  // ── POLITIKA ZASEBNOSTI ────────────────────────────────────────────────────
+  if(step==='zasebnost') return (
+    <div style={{fontFamily:'system-ui,sans-serif',minHeight:'100vh',background:'#fafaf8',padding:'24px'}}>
+      <style>{CSS}</style>
+      <div style={{maxWidth:600,margin:'0 auto'}}>
+        <button onClick={()=>setStep('form')} style={{background:'none',border:'none',fontSize:13,color:'#aaa',cursor:'pointer',padding:'0 0 20px',display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}}>← Nazaj na vprašalnik</button>
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:28}}>
+          <ColorWheel size={36}/>
+          <div>
+            <div style={{fontFamily:'Georgia,serif',fontSize:18,fontWeight:700,color:'#1a1a1a'}}>Politika zasebnosti</div>
+            <div style={{fontSize:11,color:'#aaa'}}>Barvni kompas · Osebnostni profil</div>
+          </div>
+        </div>
+        <div style={{background:'white',borderRadius:16,padding:'28px',border:'1px solid #e8e4df',lineHeight:1.8}}>
+          {[
+            {title:'1. Kdo obdeluje vaše podatke',text:'Vaše podatke obdeluje izvajalec storitve Barvni kompas. Storitev je namenjena pripravi individualnega osebnostnega profila na podlagi vaših odgovorov.'},
+            {title:'2. Katere podatke zbiramo',text:'Zbiramo naslednje podatke: ime in priimek, e-poštni naslov, ime podjetja (neobvezno), delovno mesto (neobvezno), spol ter odgovore na vprašalnik. Ne zbiramo občutljivih osebnih podatkov (zdravstveni, finančni, biometrični ipd.).'},
+            {title:'3. Namen obdelave',text:'Vaši podatki se uporabljajo izključno za pripravo in dostavo vašega osebnostnega profila Barvni kompas. Podatkov ne prodajamo, ne posredujemo oglaševalcem in ne delimo s tretjimi osebami brez vaše izrecne privolitve.'},
+            {title:'4. Pravna podlaga',text:'Obdelava temelji na vaši prostovoljni privolitvi (člen 6(1)(a) GDPR), ki jo podate s potrditvijo polja ob prijavi. Privolitev lahko kadarkoli prekličete z zahtevo na e-naslov izvajalca.'},
+            {title:'5. Hramba podatkov',text:'Vaše podatke hranimo največ 2 leti od oddaje vprašalnika oziroma do preklica vaše privolitve. Po poteku tega roka se podatki trajno izbrišejo.'},
+            {title:'6. Vaše pravice',text:'Skladno z GDPR imate pravico do dostopa, popravka, izbrisa (pozaba), omejitve obdelave in prenosljivosti vaših podatkov. Za uveljavljanje pravic ali preklic privolitve pišite izvajalcu.'},
+            {title:'7. Varnost podatkov',text:'Vaši podatki so shranjeni lokalno pri izvajalcu in niso javno dostopni. Odgovori vprašalnika se pošiljajo izključno prek varne HTTPS povezave.'},
+            {title:'8. Piškotki',text:'Ta spletna stran ne uporablja piškotkov za sledenje ali profiliranje.'},
+          ].map((s,i)=>(
+            <div key={i} style={{marginBottom:22}}>
+              <div style={{fontSize:13,fontWeight:700,color:'#1a1a1a',marginBottom:5}}>{s.title}</div>
+              <div style={{fontSize:13,color:'#4a4a4a'}}>{s.text}</div>
+            </div>
+          ))}
+          <div style={{marginTop:24,padding:'14px',background:'#f9f7f4',borderRadius:10,fontSize:12,color:'#888'}}>
+            Datum zadnje posodobitve: April 2026 · Za vprašanja o zasebnosti pišite izvajalcu storitve.
+          </div>
+        </div>
+        <div style={{marginTop:20,textAlign:'center'}}>
+          <button onClick={()=>setStep('form')} style={{padding:'12px 28px',background:'#1a1a1a',color:'white',border:'none',borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>← Nazaj na vprašalnik</button>
+        </div>
+      </div>
+    </div>
+  )
+
+  // ── VPRAŠALNIK ─────────────────────────────────────────────────────────────
   if(step==='questionnaire') {
     const q=QUESTIONS[current], a=answers[current], order=orders[current]
     const vstat=validate(a)
@@ -294,6 +362,7 @@ export default function App() {
     )
   }
 
+  // ── S/N VPRAŠANJA ──────────────────────────────────────────────────────────
   if(step==='sn') {
     const allSnDone = snAnswers.every(v=>validateSN(v)==='ok')
     return (
@@ -353,6 +422,7 @@ export default function App() {
     )
   }
 
+  // ── ZAKLJUČEK ──────────────────────────────────────────────────────────────
   const scores=calcScores(answers)
   const sorted=['B','R','G','Y'].map(k=>({k,v:scores[k]})).sort((a,b)=>b.v-a.v)
   const lead=sorted[0]
